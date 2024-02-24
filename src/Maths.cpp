@@ -254,3 +254,12 @@ Vec3 Matrix4::TransformDirection(const Vec3& v) const {
         data[2] * v.x + data[6] * v.y + data[10] * v.z
     };
 }
+
+Vec3 Matrix4::GetTranslation() const {
+    Vec3 v;
+    v.x = data[12];
+    v.y = data[13];
+    v.z = data[14];
+    
+    return v;
+}

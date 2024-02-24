@@ -1,24 +1,52 @@
 #version 330 core
 out vec4 FragColor;
 
-in vec3 vNormal; 
-in vec3 vSunDir;
+struct Material {
+    int hasDiffuseMap;
+    sampler2D diffuseMap;
+    vec3 diffuseColor;
+
+    sampler2D specularMap;
+    int hasSpecularMap;
+    vec3 specularColor;
+    float specularExponent;
+    float specularStrength;
+
+    int hasAmbientMap;
+    sampler2D ambientMap;
+    vec3 ambientColor;
+};
+
+uniform Material material;
+uniform vec3 ambientColor;
+
 in vec2 vUV;
-in vec3 vDiffuseColor;
 
-uniform sampler2D diffuseMap;
-uniform int hasDiffuseMap;
+vec3 getMaterialDiffuse() {
+    vec3 materialDiffuse = vec3(1);
 
-void main() {
-
-    vec4 diffuse = vec4(vDiffuseColor, 1.0);
-
-    if (hasDiffuseMap > 0) {
-        diffuse *= texture(diffuseMap, vec2(vUV.x, 1.0 - vUV.y));
+    if (material.hasDiffuseMap > 0) {
+        materialDiffuse *= texture(material.diffuseMap, vUV).rgb;
+    } else {
+        materialDiffuse *= material.diffuseColor;
     }
 
-    float minBrightness = 0.2;
-    float brightness = max(dot(normalize(vNormal), normalize(vSunDir)), 0.0);
-    brightness = max(brightness, minBrightness);
-    FragColor = diffuse * brightness;
+    return materialDiffuse;
+}
+vec3 getMaterialAmbient() {
+    vec3 materialAmbient = vec3(1);
+
+    if (material.hasAmbientMap > 0) {
+        materialAmbient *= texture(material.ambientMap, vUV).rgb;
+    } else {
+        materialAmbient *= material.ambientColor;
+    }
+
+    return materialAmbient;
+}
+
+void main() {
+    vec3 result = getMaterialAmbient() * getMaterialDiffuse();
+
+    FragColor = vec4(result, 1.0);
 }

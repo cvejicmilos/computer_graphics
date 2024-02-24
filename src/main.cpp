@@ -3,8 +3,8 @@
 #include "AppWindow.h"
 #include "Model.h"
 #include "Timer.h"
-#include <filesystem>
 #include <assert.h>
+#include <filesystem>
 namespace fs = std::filesystem;
 
 class FileManager {
@@ -52,12 +52,12 @@ std::string FileManager::FromRoot(const std::string& relPath) {
 }
 
 
-int main(int , char** argv)  {
+int main(int argc, char** argv)  {
     
     // Create Window
     AppWindow window("OpenGL", 800, 600);
     if (!window.IsValid()) {
-        std::cerr << "Window init failed\n";
+        // Error message happens in window code
         return 1;
     }
     
@@ -69,14 +69,14 @@ int main(int , char** argv)  {
     }
     std::cout << "OK!\n";
 
-    // First command line argument is the executable
     FileManager::Init(argv[0]);
 
-    // Load cottage Model
+    // Load models
     Model cottageModel(FileManager::FromRoot("assets/models/cottage/cottage.obj"));
+    Model containerModel(FileManager::FromRoot("assets/models/container/container.obj"));
 
-    // Load a basic Shader
-    Shader basicShader(FileManager::FromRoot("assets/shaders/basic.vs"), FileManager::FromRoot("assets/shaders/basic.fs"));
+    // Load a blinn-phong Shader
+    Shader blinnPhongShader(FileManager::FromRoot("assets/shaders/blinn-phong.vs"), FileManager::FromRoot("assets/shaders/blinn-phong.fs"));
 
 
     // Camera transformation
@@ -84,7 +84,11 @@ int main(int , char** argv)  {
     Matrix4 viewMatrix = Matrix4::Identity();
 
     // Model transformation
-    Matrix4 modelMatrix = Matrix4::CreateTranslation({ 0, -5, -100 });
+    Matrix4 cottageTransform = Matrix4::CreateTranslation({ 0, -5, -100 });
+    Matrix4 containerTransform = Matrix4::CreateTranslation({ 30, -5, -90 })
+                                .SetScale({ 0.05f, 0.05f, 0.05f });
+
+
 
     // Movement constants
     const float camMoveSpeed = 10.f;
@@ -92,6 +96,11 @@ int main(int , char** argv)  {
 
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
 
     // Timer to keep track of frametime for delta time
     Timer frameTimer;
@@ -151,6 +160,14 @@ int main(int , char** argv)  {
             rotate.z -= camRotateSpeed * deltaTime;
         }
 
+        static bool was_r_down = false;
+        if (window.IsKeyDown(GLFW_KEY_R) && !was_r_down) {
+            was_r_down = true;
+
+            blinnPhongShader.HotReload();
+        }
+        if (!window.IsKeyDown(GLFW_KEY_R)) was_r_down = false;
+
         // Apply rotation and movement to the view transform
         viewMatrix.Rotate(rotate.x, {1, 0, 0})
             .Rotate(rotate.y, {0, 1, 0})
@@ -159,13 +176,10 @@ int main(int , char** argv)  {
         // Move on local axes for camera
         Vec3 localMove = viewMatrix.TransformDirection(move);
         viewMatrix.Translate(localMove);
-        
-        // Inverse the view matrix before passing it
-        Matrix4 viewMatrxInverse = viewMatrix;
-        viewMatrxInverse.Invert();
 
         // Draw the model with the shader and the transformations
-        cottageModel.Draw(basicShader, modelMatrix, viewMatrxInverse, projMatrix);
+        cottageModel.Draw(blinnPhongShader, cottageTransform, viewMatrix, projMatrix);
+        containerModel.Draw(blinnPhongShader, containerTransform, viewMatrix, projMatrix);
 
         // Poll events and swap window buffer
         window.PollEvents();

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <iostream>
 
 #include "AppWindow.h"
 
@@ -6,6 +7,8 @@ bool g_GLFWInitialized = false;
 
 AppWindow::AppWindow(const char* title, int width, int height) {
 	m_Valid = false;
+
+	std::cout << "Creating a Window...\n";
 
 	// Initialize GLFW if it hasn't been initilized yet
 	if (!g_GLFWInitialized) {
@@ -19,6 +22,7 @@ AppWindow::AppWindow(const char* title, int width, int height) {
 	if (!m_WindowHandle) {
 		m_Valid = false;
 		m_Running = false;
+		std::cout << "Failed creating window\n";
 		return;
 	}
 
@@ -26,6 +30,8 @@ AppWindow::AppWindow(const char* title, int width, int height) {
 
 	m_Valid = true;
 	m_Running = true;
+
+	std::cout << "Window OK!\n";
 }
 
 AppWindow::~AppWindow() {

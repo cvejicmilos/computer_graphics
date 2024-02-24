@@ -5,6 +5,10 @@
 
 GLuint Shader::s_LastBound = 0;
 
+std::string fallbackVertPath = "assets/shaders/basic.vs";
+std::string fallbackFragPath = "assets/shaders/basic.fs";
+Shader* fallbackShader = NULL;
+
 std::string readFileString(const std::string& path) {
     std::ifstream file(path);
     assert(file.is_open() && "Failed to open file");
@@ -16,54 +20,13 @@ std::string readFileString(const std::string& path) {
     return buffer.str();
 }
 
-Shader::Shader(const std::string& vertSrcPath, const std::string& fragSrcPath) {
-
-    std::string vertSrc = readFileString(vertSrcPath);
-    std::string fragSrc = readFileString(fragSrcPath);
-
-    GLuint vertexShader, fragmentShader;
-    GL_CALL(vertexShader = glCreateShader(GL_VERTEX_SHADER));
-
-    const GLchar* vertSrcPtr = vertSrc.c_str();
-    GL_CALL(glShaderSource(vertexShader, 1, &vertSrcPtr, NULL));
-    GL_CALL(glCompileShader(vertexShader));
-
-    const GLchar* fragSrcPtr = fragSrc.c_str();
-    GL_CALL(fragmentShader = glCreateShader(GL_FRAGMENT_SHADER));
-    GL_CALL(glShaderSource(fragmentShader, 1, &fragSrcPtr, NULL));
-    GL_CALL(glCompileShader(fragmentShader));
-
-    GLint success;
-    GLchar infoLog[512];
-
-    GL_CALL(glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success));
-    if(!success) {
-        GL_CALL(glGetShaderInfoLog(vertexShader, 512, NULL, infoLog));
-        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    GL_CALL(glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success));
-    if(!success) {
-        GL_CALL(glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog));
-        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    GL_CALL(m_Program = glCreateProgram());
-    GL_CALL(glAttachShader(m_Program, vertexShader));
-    GL_CALL(glAttachShader(m_Program, fragmentShader));
-    GL_CALL(glLinkProgram(m_Program));
-
-    GL_CALL(glGetProgramiv(m_Program, GL_LINK_STATUS, &success));
-    if(!success) {
-        GL_CALL(glGetProgramInfoLog(m_Program, 512, NULL, infoLog));
-        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-
-    GL_CALL(glDeleteShader(vertexShader));
-    GL_CALL(glDeleteShader(fragmentShader));
+Shader::Shader(const std::string& vertSrcPath, const std::string& fragSrcPath, ShaderSettings settings) {
+    m_VertPath = vertSrcPath;
+    m_FragPath = fragSrcPath;
+    Load(settings); // If fail, fallback shader will be used
 }
 Shader::~Shader() {
-    GL_CALL(glDeleteProgram(m_Program));    
+    Unload();
 }
 
 void Shader::Bind() {
@@ -73,6 +36,16 @@ void Shader::Bind() {
 void Shader::Unbind() {
     GL_CALL(glUseProgram(0));
     s_LastBound = 0;
+}
+
+void Shader::HotReload(ShaderSettings settings) {
+    std::cout << "Attempting hot reload on shader\n";
+
+    bool result = Load(settings);
+
+    if (!result) {
+        std::cerr << "Hot reload failed; fallback basic shader.\n";
+    }
 }
 
 void Shader::SetInt(const std::string& field, int value) {
@@ -102,4 +75,99 @@ void Shader::SetMat4(const std::string& field, Matrix4 value) {
 
 GLuint Shader::GetLocation(const std::string& name) {
     GL_CALL(return glGetUniformLocation(m_Program, name.c_str()));
+}
+
+bool Shader::Load(ShaderSettings settings) {
+
+    std::cout << "Loading shader from '" << m_VertPath << "' and '" << m_FragPath << "'\n";
+
+    std::string vertSrc = readFileString(m_VertPath);
+    std::string fragSrc = readFileString(m_FragPath);
+
+    if (!ProcessSource(vertSrc, settings)) return false;
+    if (!ProcessSource(fragSrc, settings)) return false;
+
+    GLuint vertexShader, fragmentShader;
+    GL_CALL(vertexShader = glCreateShader(GL_VERTEX_SHADER));
+
+    const GLchar* vertSrcPtr = vertSrc.c_str();
+    GL_CALL(glShaderSource(vertexShader, 1, &vertSrcPtr, NULL));
+    GL_CALL(glCompileShader(vertexShader));
+
+    const GLchar* fragSrcPtr = fragSrc.c_str();
+    GL_CALL(fragmentShader = glCreateShader(GL_FRAGMENT_SHADER));
+    GL_CALL(glShaderSource(fragmentShader, 1, &fragSrcPtr, NULL));
+    GL_CALL(glCompileShader(fragmentShader));
+
+    bool anyError = false;
+
+    GLint success;
+    GLchar infoLog[512];
+
+    GL_CALL(glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success));
+    if(!success) {
+        GL_CALL(glGetShaderInfoLog(vertexShader, 512, NULL, infoLog));
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+        anyError = true;
+    }
+
+    GL_CALL(glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success));
+    if(!success) {
+        GL_CALL(glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog));
+        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+        anyError = true;
+    }
+
+    if (anyError) {
+        GL_CALL(glDeleteShader(vertexShader));
+        GL_CALL(glDeleteShader(fragmentShader));
+    } else {
+        GL_CALL(m_Program = glCreateProgram());
+        GL_CALL(glAttachShader(m_Program, vertexShader));
+        GL_CALL(glAttachShader(m_Program, fragmentShader));
+        GL_CALL(glLinkProgram(m_Program));
+
+        GL_CALL(glGetProgramiv(m_Program, GL_LINK_STATUS, &success));
+        if(!success) {
+            GL_CALL(glGetProgramInfoLog(m_Program, 512, NULL, infoLog));
+            std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+            GL_CALL(glDeleteProgram(m_Program));
+            anyError = true;
+        }
+
+        GL_CALL(glDeleteShader(vertexShader));
+        GL_CALL(glDeleteShader(fragmentShader));
+    }
+
+    if (!anyError) {
+        std::cout << "Shader Loading OK!\n";
+    } else {
+        std::cout << "Fallback shader used\n";
+        if (!fallbackShader) {
+            fallbackShader = new Shader(fallbackVertPath, fallbackFragPath, settings);
+        }
+
+        m_Program = fallbackShader->m_Program;
+    }
+
+    return !anyError;
+}
+void Shader::Unload() {
+    GL_CALL(glDeleteProgram(m_Program));
+}
+
+void tryReplaceAllInString(std::string& str, const std::string& oldSubstr, const std::string& newSubstr) {
+    size_t pos = str.find(oldSubstr);
+    while (pos != std::string::npos) {
+        str.replace(pos, std::string(oldSubstr).length(), newSubstr);
+        pos = str.find(oldSubstr);
+    }
+}
+
+bool Shader::ProcessSource(std::string& src, ShaderSettings settings) {
+    tryReplaceAllInString(src, "##MAX_NUM_POINTLIGHTS", std::to_string(settings.maxNumPointLights));
+    tryReplaceAllInString(src, "##MAX_NUM_DIRLIGHTS", std::to_string(settings.maxNumDirLights));
+    tryReplaceAllInString(src, "##MAX_NUM_SPOTLIGHTS", std::to_string(settings.maxNumSpotLights));
+
+    return true;
 }

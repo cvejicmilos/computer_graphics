@@ -26,10 +26,12 @@ struct Material {
     Vec3 ambientColor = { 1.f, 1.f, 1.f };
     Vec3 specularColor = { 1.f, 1.f, 1.f };
     Vec3 emissiveColor = { 0.f, 0.f, 0.f };
-    float specularExponent = 0.f;
+    float specularExponent = 32.f;
     float alpha = 1.f;
 
     Texture diffuseMap; 
+    Texture specularMap;
+    Texture ambientMap;
     Texture normalMap; 
 };
 

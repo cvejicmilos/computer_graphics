@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#define PI32 (3.14159265359f)
+
 // Simple math types for 3D graphics (Vec3 & Matrix4)
 
 struct Vec2 {
@@ -38,6 +40,8 @@ struct Matrix4 {
 
     Matrix4& Invert();
     Vec3 TransformDirection(const Vec3& v) const;
+
+    Vec3 GetTranslation() const;
 
     // Helper functions to create matrix
     static Matrix4 Identity();

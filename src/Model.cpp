@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -66,6 +67,8 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
     std::ifstream file(path);
     assert(file.is_open() && "Could not open file");
 
+    std::cout << "Loading materials from '" << path << "\n...";
+
     Material currentMaterial;
     std::string line;
     while (std::getline(file, line)) {
@@ -78,6 +81,7 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
         } else if (prefix == "newmtl") {
             if (!currentMaterial.name.empty()) {
                 materials[currentMaterial.name] = currentMaterial;
+                std::cout << "Loaded material '" << currentMaterial.name << "'\n";
                 currentMaterial = Material();
             }
             iss >> currentMaterial.name;
@@ -86,10 +90,18 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
             std::string diffusePath;
             iss >> diffusePath;
             currentMaterial.diffuseMap = loadTexture(sameDirPath(path, diffusePath)); // Relative to mtl path
+        } else if (prefix == "map_Ks") {
+            std::string specularPath;
+            iss >> specularPath;
+            currentMaterial.specularMap = loadTexture(sameDirPath(path, specularPath)); // Relative to mtl path
         } else if (prefix == "map_bump") {
             std::string normalPath;
             iss >> normalPath;
             currentMaterial.normalMap = loadTexture(sameDirPath(path, normalPath)); // Relative to mtl path
+        } else if (prefix == "map_Ka") {
+            std::string ambientPath;
+            iss >> ambientPath;
+            currentMaterial.ambientMap = loadTexture(sameDirPath(path, ambientPath)); // Relative to mtl path
         } else if (prefix == "Ka") {
             iss >> currentMaterial.ambientColor.x >> currentMaterial.ambientColor.y >> currentMaterial.ambientColor.z;
         } else if (prefix == "Kd") {
@@ -106,12 +118,17 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
             float alphaInverted;
             iss >> alphaInverted;
             currentMaterial.alpha = 1.f - alphaInverted;
-        } else if (prefix == "Ni") {
+        } 
+        // Below are ignored for now
+        else if (prefix == "Ni") { // Optical Density / Index of refraction
             std::string dummy;
             iss >> dummy; // Ignore
-        } else if (prefix == "illum") {
+        } else if (prefix == "illum") { // Illumination mode
             std::string dummy;
             iss >> dummy; // Ignore
+        } else if (prefix == "Tf") { // Transmission Filter Color
+            std::string dummy;
+            iss >> dummy >> dummy >> dummy; // Ignore
         } else if(prefix != "") {
             assert(false && "Unhandled field in material file");
         }
@@ -120,6 +137,8 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
     if (!currentMaterial.name.empty()) {
         materials[currentMaterial.name] = currentMaterial;
     }
+
+    std::cout << "Materials loaded OK!\n";
 }
 Material* MaterialLibrary::GetMaterial(const std::string& name) {
     assert(materials.find(name) != materials.end() && "No such material");
@@ -156,6 +175,8 @@ Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std:
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     GL_CALL(glBindVertexArray(0));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+
+    std::cout << "Created mesh object '" << m_Name << "' with " << m_Vertices.size() << " vertices and " << m_Indicies.size() << " indices.\n";
 }
 Mesh::~Mesh() {
     GL_CALL(glDeleteVertexArrays(1, &m_VAO));
@@ -176,6 +197,8 @@ Model::Model(const std::string& objPath) {
     std::ifstream file(objPath);
     assert(file.is_open() && "Failed to open file");
 
+    std::cout << "Loading model from '" << objPath << "'...";
+
     std::vector<Vec3> positions;
     std::vector<Vec3> normals;
     std::vector<Vec2> uvs;
@@ -186,6 +209,8 @@ Model::Model(const std::string& objPath) {
     std::string currentMaterialName = "UNNAMED";
     bool normalSmoothing = true;
 
+    // Parsing wavefront .obj model according to:
+    // https://en.wikipedia.org/wiki/Wavefront_.obj_file
 
     /////// Parse OBJ one object at a time
     std::string line;
@@ -215,7 +240,6 @@ Model::Model(const std::string& objPath) {
         } else if (prefix == "mtllib") {
             std::string path;
             iss >> path;
-            std::cout << fs::path(objPath).parent_path() << "\n";
             MaterialLibrary::Get().LoadMaterialFile(sameDirPath(objPath, path));
         } else if (prefix == "usemtl") {
             std::string name;
@@ -228,6 +252,7 @@ Model::Model(const std::string& objPath) {
         } else if (prefix == "vt") {
             Vec2 uv;
             iss >> uv.x >> uv.y;
+            uv.y = 1.f - uv.y;
             uvs.push_back(uv);
         } else if (prefix == "vn") {
             Vec3 normal;
@@ -282,45 +307,103 @@ Model::Model(const std::string& objPath) {
                     currentIndices.push_back(static_cast<int>(currentVertices.size() - 1));
                 }
             }
-        } else {
+        } else if (prefix == "r" || prefix == "g" || prefix == "b"
+            || prefix == "m" || prefix == "l" || prefix == "z") { // Scalar or Bump texture channel (?)
+            std::string dummy;
+            iss >> dummy; // Ignore
+        } else if(prefix != "") {
             std::cerr << "Unhandled field in .obj file: " << prefix << "\n";
-            exit(1);
+            CRASH();
         }
     }
 
     if (currentVertices.size() > 0) {
         m_Meshes.push_back(new Mesh(currentVertices, currentIndices, currentMeshName, currentMaterialName));
     }
+
+    std::cout << "Model loading OK!\n";
 }
 
 Model::~Model() {
-    
-    
+    for (auto mesh : m_Meshes) {
+        delete mesh;
+    }
 }
 
 void Model::Draw(Shader& shader, Matrix4 modelTransform, Matrix4 view, Matrix4 proj) {
     Vec3 sunDir{ 1.f, 1.f, 1.f };
 
+    Matrix4 viewInverse = view;
+    viewInverse.Invert();
+
     shader.Bind();
 
     shader.SetMat4("model", modelTransform);
-    shader.SetMat4("view", view);
+    shader.SetMat4("view", viewInverse);
     shader.SetMat4("projection", proj);
-    shader.SetVec3("sunDir", sunDir);
-    shader.SetInt("hasDiffuseMap", 0);
 
     for (Mesh* mesh : m_Meshes) {
 
         Material* materialPtr = mesh->GetMaterialPtr();
 
-        shader.SetVec3("diffuseColor", materialPtr->diffuseColor);
+        shader.SetInt("material.hasDiffuseMap", materialPtr->diffuseMap.id != 0);
+        shader.SetInt("material.hasSpecularMap", materialPtr->specularMap.id != 0);
+        shader.SetInt("material.hasAmbientMap", materialPtr->ambientMap.id != 0);
+
+        shader.SetVec3("material.diffuseColor", materialPtr->diffuseColor);
         if (materialPtr->diffuseMap.id) {
-            shader.SetInt("hasDiffuseMap", 1);
-            shader.SetInt("diffuseMap", 0);
+            shader.SetInt("material.diffuseMap", 0);
 
             GL_CALL(glActiveTexture(GL_TEXTURE0));
             GL_CALL(glBindTexture(GL_TEXTURE_2D, materialPtr->diffuseMap.id));
         }
+
+        shader.SetVec3("material.specularColor", materialPtr->specularColor);
+        if (materialPtr->specularMap.id) {
+            shader.SetInt("material.specularMap", 1);
+
+            GL_CALL(glActiveTexture(GL_TEXTURE0 + 1));
+            GL_CALL(glBindTexture(GL_TEXTURE_2D, materialPtr->specularMap.id));
+        }
+
+        shader.SetVec3("material.ambientColor", materialPtr->ambientColor);
+        if (materialPtr->ambientMap.id) {
+            shader.SetInt("material.ambientMap", 2);
+
+            GL_CALL(glActiveTexture(GL_TEXTURE0 + 2));
+            GL_CALL(glBindTexture(GL_TEXTURE_2D, materialPtr->ambientMap.id));
+        }
+
+        shader.SetFloat("material.specularExponent", materialPtr->specularExponent);
+        shader.SetFloat("material.specularStrength", 0.5f);
+
+        shader.SetVec3("ambientColor", { .05f, .05f, .05f });
+
+        shader.SetFloat("pointLights[0].intensity", 1.0f);
+        shader.SetVec3("pointLights[0].diffuse", { 1.f, 1.f, 1.f });
+        shader.SetVec3("pointLights[0].specular", { 1.f, 1.f, 1.f });
+        shader.SetVec3("pointLights[0].position", { 9.f, 3.f, -80.f });
+        shader.SetFloat("pointLights[0].constant", 0.6f);
+        shader.SetFloat("pointLights[0].linear", .05f);
+        shader.SetFloat("pointLights[0].quadratic", .025f);
+        shader.SetInt("numPointLights", 1);
+
+        shader.SetFloat("dirLights[0].intensity", 0.3f);
+        shader.SetVec3("dirLights[0].diffuse", { 1.0f, 0.8f, 0.2f });
+        shader.SetVec3("dirLights[0].specular", { 1.f, 1.f, 0.9f });
+        shader.SetVec3("dirLights[0].direction", { .7f, -1.f, -1.f });
+        shader.SetInt("numDirLights", 1);
+
+        shader.SetFloat("spotLights[0].intensity", 1.0f);
+        shader.SetVec3("spotLights[0].diffuse", { 1.f, 1.f, 1.f });
+        shader.SetVec3("spotLights[0].specular", { 1.f, 1.f, 1.f });
+        shader.SetVec3("spotLights[0].direction", view.TransformDirection({ 0, 0, -1 }));
+        shader.SetVec3("spotLights[0].position", view.GetTranslation());
+        float cutOff = PI32 * .06125f;
+        shader.SetFloat("spotLights[0].cutOff", cos(cutOff));
+        shader.SetFloat("spotLights[0].outerCutOff", cos(cutOff * 1.5f));
+        shader.SetInt("numSpotLights", 1);
+
 
         mesh->DrawCall();
     }
