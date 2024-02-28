@@ -3,6 +3,8 @@
 #include "AppWindow.h"
 #include "Model.h"
 #include "Timer.h"
+#include "Scene.h"
+
 #include <assert.h>
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -51,7 +53,6 @@ std::string FileManager::FromRoot(const std::string& relPath) {
     return s_Root + "/" + relPath;
 }
 
-
 int main(int argc, char** argv)  {
     
     // Create Window
@@ -71,24 +72,29 @@ int main(int argc, char** argv)  {
 
     FileManager::Init(argv[0]);
 
-    // Load models
-    Model cottageModel(FileManager::FromRoot("assets/models/cottage/cottage.obj"));
-    Model containerModel(FileManager::FromRoot("assets/models/container/container.obj"));
-
     // Load a blinn-phong Shader
     Shader blinnPhongShader(FileManager::FromRoot("assets/shaders/blinn-phong.vs"), FileManager::FromRoot("assets/shaders/blinn-phong.fs"));
 
+    Scene scene;
+    scene.AddModel(new Model(FileManager::FromRoot("assets/models/cottage/cottage.obj")))
+        ->GetTransform().SetTranslation({ 0, -5, -100 });
+    scene.AddModel(new Model(FileManager::FromRoot("assets/models/container/container.obj")))
+        ->GetTransform().SetTranslation({ 30, -5, -90 })
+            .SetScale({ 0.05f, 0.05f, 0.05f });
 
-    // Camera transformation
-    Matrix4 projMatrix = Matrix4::Perspective(3.1415f / 4.f, 1280.0f / 720.0f, 0.1f, 1000.0f);
-    Matrix4 viewMatrix = Matrix4::Identity();
+    
+    scene.AddQuad(GrassQuad({ -30, -5.f + 2.5f, -100 }, { 5.f, 5.f }, { 0, 0.f, 0 }));
+    scene.AddQuad(GrassQuad({ -30, -5.f + 2.5f, -100 + 0.1f }, { 5.f, 5.f }, { 0, PI32, 0 }));
+    scene.AddQuad(GrassQuad({ -30, -5.f + 2.5f, -100 }, { 5.f, 5.f }, { 0, PI32 / 2.f, 0 }));
+    scene.AddQuad(GrassQuad({ -30 + 0.1f, -5.f + 2.5f, -100 }, { 5.f, 5.f }, { 0, PI32 / 2.f + PI32, 0 }));
 
-    // Model transformation
-    Matrix4 cottageTransform = Matrix4::CreateTranslation({ 0, -5, -100 });
-    Matrix4 containerTransform = Matrix4::CreateTranslation({ 30, -5, -90 })
-                                .SetScale({ 0.05f, 0.05f, 0.05f });
+    scene.AddPointLight();
+    scene.AddDirLight();
+    scene.AddSpotLight();
+    size_t flashLightIndex = scene.AddSpotLight();
 
-
+    Texture grassTexture = loadTexture(FileManager::FromRoot("assets/textures/grass.png"));
+    Texture grassNormalMap = loadTexture(FileManager::FromRoot("assets/textures/grass_normals.png"));
 
     // Movement constants
     const float camMoveSpeed = 10.f;
@@ -96,10 +102,11 @@ int main(int argc, char** argv)  {
 
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     // Enable blending
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
 
     // Timer to keep track of frametime for delta time
@@ -169,17 +176,20 @@ int main(int argc, char** argv)  {
         if (!window.IsKeyDown(GLFW_KEY_R)) was_r_down = false;
 
         // Apply rotation and movement to the view transform
-        viewMatrix.Rotate(rotate.x, {1, 0, 0})
+        scene.GetViewMatrix().Rotate(rotate.x, {1, 0, 0})
             .Rotate(rotate.y, {0, 1, 0})
             .Rotate(rotate.z, {0, 0, 1});
 
         // Move on local axes for camera
-        Vec3 localMove = viewMatrix.TransformDirection(move);
-        viewMatrix.Translate(localMove);
+        Vec3 localMove = scene.GetViewMatrix().TransformDirection(move);
+        scene.GetViewMatrix().Translate(localMove);
 
-        // Draw the model with the shader and the transformations
-        cottageModel.Draw(blinnPhongShader, cottageTransform, viewMatrix, projMatrix);
-        containerModel.Draw(blinnPhongShader, containerTransform, viewMatrix, projMatrix);
+        SpotLight& flashLight = scene.GetSpotLightAt(flashLightIndex);
+
+        flashLight.position = scene.GetViewMatrix().GetTranslation();
+        flashLight.direction = scene.GetViewMatrix().TransformDirection({ 0, 0, -1 });
+
+        scene.Draw(blinnPhongShader, grassTexture, grassNormalMap);
 
         // Poll events and swap window buffer
         window.PollEvents();

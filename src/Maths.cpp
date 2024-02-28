@@ -1,4 +1,4 @@
-#include "Maths.h"
+#include "../include/Maths.h"
 
 Matrix4::Matrix4() {
     for (int i = 0; i < 16; ++i) data[i] = 0.0f;
@@ -87,6 +87,20 @@ Matrix4 Matrix4::operator*(const Matrix4& other) const {
         }
     }
     return result;
+}
+
+Vec4 Matrix4::Multiply(const Vec4& other) const {
+    return Vec4{
+        data[0] * other.x + data[4] * other.y + data[8] * other.z + data[12] * other.w,
+        data[1] * other.x + data[5] * other.y + data[9] * other.z + data[13] * other.w,
+        data[2] * other.x + data[6] * other.y + data[10] * other.z + data[14] * other.w,
+        data[3] * other.x + data[7] * other.y + data[11] * other.z + data[15] * other.w
+    };
+}
+
+Vec3 Matrix4::Multiply(const Vec3& other) const {
+    Vec4 temp = Multiply(Vec4{other.x, other.y, other.z, 1.0f});
+    return Vec3{temp.x, temp.y, temp.z};
 }
 
 Matrix4 Matrix4::Identity() {

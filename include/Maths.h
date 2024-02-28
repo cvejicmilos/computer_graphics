@@ -8,9 +8,35 @@
 
 struct Vec2 {
     float x, y;
+
+    Vec2 Subtract(const Vec2& other) const {
+        return {x - other.x, y - other.y};
+    }
+
+    float Length() const {
+        return sqrt((x * x) + (y * y));
+    }
+
+    Vec2 Normalized() const {
+        float len = Length();
+        return Vec2{x / len, y / len};
+    }
 };
 struct Vec3 {
     float x, y, z;
+
+    Vec3 Subtract(const Vec3& other) const {
+        return {x - other.x, y - other.y, z - other.z};
+    }
+
+    float Length() const {
+        return sqrt((x * x) + (y * y) + (z * z));
+    }
+
+    Vec3 Normalized() const {
+        float len = Length();
+        return Vec3{x / len, y / len, z / len};
+    }
 };
 struct Vec4 {
     float x, y, z, w;
@@ -37,6 +63,9 @@ struct Matrix4 {
     Matrix4& Rotate(float angle, const Vec3& axis);
 
     Matrix4 operator*(const Matrix4& other) const;
+
+    Vec4 Multiply(const Vec4& other) const;
+    Vec3 Multiply(const Vec3& other) const;
 
     Matrix4& Invert();
     Vec3 TransformDirection(const Vec3& v) const;

@@ -37,3 +37,12 @@ inline void glClearError() {
 #define GL_CALL(x) glClearError();\
     x;\
     glCheckError(#x, __FILE__, __LINE__);
+
+
+
+struct Texture {
+    GLuint id = 0;
+    int width, height, channels;
+};
+Texture loadTexture(const std::string& path);
+void deleteTexture(const Texture& texture);

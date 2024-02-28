@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Maths.h"
 #include <vector>
 #include <string>
 #include <map>
@@ -8,49 +7,16 @@
 
 #include <glad/glad.h>
 
+#include "Maths.h"
 #include "Shader.h"
+#include "GLutils.h"
+#include "Material.h"
+
+#include "Utils.h"
+
+class Scene;
 
 
-struct Vertex {
-    Vec3 pos;
-    Vec3 normal;
-    Vec2 uv;
-};
-struct Texture {
-    GLuint id = 0;
-    int width, height, channels;
-};
-struct Material {
-    std::string name = "Unnamed";
-    Vec3 diffuseColor = { 1.f, 1.f, 1.f };
-    Vec3 ambientColor = { 1.f, 1.f, 1.f };
-    Vec3 specularColor = { 1.f, 1.f, 1.f };
-    Vec3 emissiveColor = { 0.f, 0.f, 0.f };
-    float specularExponent = 32.f;
-    float alpha = 1.f;
-
-    Texture diffuseMap; 
-    Texture specularMap;
-    Texture ambientMap;
-    Texture normalMap; 
-};
-
-Texture loadTexture(const std::string& path);
-void deleteTexture(const std::string& path);
-
-class MaterialLibrary {
-private:
-    static MaterialLibrary* s_Instance;
-
-    std::map<std::string, Material> materials;
-public:
-    static MaterialLibrary& Get();
-
-    MaterialLibrary();
-
-    void LoadMaterialFile(const std::string& path);
-    Material* GetMaterial(const std::string& name);
-};
  
 
 class Mesh {
@@ -68,13 +34,16 @@ public:
     void DrawCall();
 
     Material* GetMaterialPtr() const { return MaterialLibrary::Get().GetMaterial(m_MaterialName); }
+    
 };
 class Model {
 private:
     std::vector<Mesh*> m_Meshes;
+    Matrix4 m_Transform = Matrix4::Identity();
 public:
     Model(const std::string& filepath);
     ~Model();
 
-    void Draw(Shader& shader, Matrix4 modelTransform, Matrix4 view = Matrix4::CreateTranslation(Vec3{0.0f, 0.0f, -3.0f}), Matrix4 proj = Matrix4::Perspective(3.1415f / 4.f, 1280.0f / 720.0f, 0.1f, 100.0f));
+    void Draw(Scene& scene, Shader& shader);
+    Matrix4& GetTransform() { return m_Transform; }
 };

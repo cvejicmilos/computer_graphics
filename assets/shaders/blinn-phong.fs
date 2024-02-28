@@ -6,6 +6,9 @@ in vec2 vUV;
 in vec3 vFragPos;
 in vec3 vViewPos;
 in vec3 vVertexPos;
+in mat4 vModel;
+in vec3 vTangent;
+in vec3 vBitangent;
 
 struct Material {
     int hasDiffuseMap;
@@ -21,6 +24,11 @@ struct Material {
     int hasAmbientMap;
     sampler2D ambientMap;
     vec3 ambientColor;
+
+    int hasNormalMap;
+    sampler2D normalMap;
+
+    float alpha;
 };
 
 struct DirecitonalLight {
@@ -96,21 +104,52 @@ vec3 getMaterialAmbient() {
 
     return materialAmbient;
 }
+vec3 getNormal() {
+    
+    if (material.hasNormalMap > 0) {
+        vec3 normSample = texture(material.normalMap, vUV).rgb;
+        vec3 norm = normSample * 2.0 - 1.0; // Convert from [0, 1] to [-1, 1]
+
+        // Construct the TBN matrix
+        vec3 T = normalize(vTangent);
+        vec3 B = normalize(vBitangent);
+        vec3 N = normalize(vNormal);
+        mat3 TBN = mat3(T, B, N);
+
+        // Transform the normal from tangent space to world space
+        return normalize(mat3(transpose(inverse(vModel))) * (TBN * norm));
+    } else {
+        return normalize(vNormal);
+    }
+}
+
+float getAlpha() {
+    float alpha = material.alpha;
+    if (material.hasAmbientMap > 0) {
+        alpha *= texture(material.ambientMap, vUV).a;
+    }
+
+    if (material.hasDiffuseMap > 0) {
+        alpha *= texture(material.diffuseMap, vUV).a;
+    }
+    
+    return alpha;
+}
 
 float calcDiff(vec3 lightDir) {
-    return max(dot(vNormal, lightDir), 0.0);
+    return max(dot(getNormal(), lightDir), 0.0);
 }
 float calcSpec(vec3 lightDir) {
 
     /*
     vec3 viewDir = normalize(vViewPos - vFragPos);
-    vec3 reflectDir = reflect(-lightDir, vNormal);
+    vec3 reflectDir = reflect(-lightDir, getNormal());
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.specularExponent);
     */
 
     vec3 viewDir = normalize(vViewPos - vFragPos);
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(vNormal, halfwayDir), 0.0), material.specularExponent);
+    float spec = pow(max(dot(getNormal(), halfwayDir), 0.0), material.specularExponent);
 
     return spec;
 }
@@ -170,7 +209,8 @@ vec3 getSpotLightContribution(SpotLight light) {
 }
 
 void main() {
-    vec3 ambient = ambientColor * getMaterialAmbient();
+    if (getAlpha() < 0.1) discard;
+    vec3 ambient = vec3(0.1, 0.1, 0.1) * getMaterialAmbient();
 
     vec3 result = ambient;
 
@@ -184,5 +224,8 @@ void main() {
         result += getSpotLightContribution(spotLights[i]);
     }
 
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(result, getAlpha());
+
+    //FragColor = vec4(vec3((getNormal().z + 1.0) / 2.0), 1.0);
+    //FragColor = vec4((getNormal().x + 1.0) / 2.0, (getNormal().y + 1.0) / 2.0, (getNormal().z + 1.0) / 2.0, 1.0);
 }

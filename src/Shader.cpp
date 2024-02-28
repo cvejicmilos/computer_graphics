@@ -79,6 +79,8 @@ GLuint Shader::GetLocation(const std::string& name) {
 
 bool Shader::Load(ShaderSettings settings) {
 
+    m_CurrentSettings = settings;
+
     std::cout << "Loading shader from '" << m_VertPath << "' and '" << m_FragPath << "'\n";
 
     std::string vertSrc = readFileString(m_VertPath);

@@ -6,6 +6,7 @@
 #include "Maths.h"
 #include "GLutils.h"
 
+
 struct ShaderSettings {
     int maxNumPointLights = 16;
     int maxNumDirLights = 16;
@@ -16,6 +17,7 @@ class Shader {
 private:
     GLuint m_Program;
     std::string m_VertPath, m_FragPath; // Stored for hot reloading
+    ShaderSettings m_CurrentSettings;
 
     static GLuint s_LastBound;
 
@@ -34,6 +36,8 @@ public:
     void SetVec3(const std::string& field, Vec3 value);
     void SetVec4(const std::string& field, Vec4 value);
     void SetMat4(const std::string& field, Matrix4 value);
+
+    const ShaderSettings& GetSettings() const { return m_CurrentSettings; }
 
 private:
     GLuint GetLocation(const std::string& name);

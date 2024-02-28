@@ -49,4 +49,6 @@ void main() {
     vec3 result = getMaterialAmbient() * getMaterialDiffuse();
 
     FragColor = vec4(result, 1.0);
+
+    
 }
