@@ -30,8 +30,7 @@ void main() {
     vTangent = aTangent;
     vBitangent = aBitangent;
 
+
     gl_Position = projection * view * model * vec4(aPos, 1.0);
     vFragPos = vec3(model * vec4(aPos, 1.0));
-
-
 }

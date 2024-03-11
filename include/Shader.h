@@ -8,9 +8,9 @@
 
 
 struct ShaderSettings {
-    int maxNumPointLights = 16;
-    int maxNumDirLights = 16;
-    int maxNumSpotLights = 16;
+    int maxNumPointLights = 3;
+    int maxNumDirLights = 3;
+    int maxNumSpotLights = 3;
 };
 
 class Shader {
@@ -44,4 +44,8 @@ private:
     bool Load(ShaderSettings settings);
     void Unload();
     bool ProcessSource(std::string& src, ShaderSettings settings);
+
+public:
+    static Shader& Basic();
+    static Shader& Basic2D();
 };

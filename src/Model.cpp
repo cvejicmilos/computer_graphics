@@ -60,8 +60,10 @@ Mesh::~Mesh() {
 void Mesh::DrawCall() {
     GL_CALL(glBindVertexArray(m_VAO));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, m_VBO));
     GL_CALL(glDrawElements(GL_TRIANGLES, (GLsizei)m_Indicies.size(), GL_UNSIGNED_INT, 0));
 
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
     GL_CALL(glBindVertexArray(0));
 }
@@ -225,17 +227,16 @@ Model::~Model() {
     }
 }
 
-void Model::Draw(Scene& scene, Shader& shader) {
+void Model::Draw(Scene& scene, Shader& shader, int fromActiveTexture) {
     Vec3 sunDir{ 1.f, 1.f, 1.f };
 
-    shader.Bind();
     shader.SetMat4("model", m_Transform);
 
     for (Mesh* mesh : m_Meshes) {
 
         Material* materialPtr = mesh->GetMaterialPtr();
 
-        setMaterialInShader(*materialPtr, shader);
+        setMaterialInShader(*materialPtr, shader, fromActiveTexture);
 
         mesh->DrawCall();
     }

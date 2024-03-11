@@ -28,7 +28,8 @@ add_subdirectory(libs/imgui)
 
 add_definitions(${OPENGL_DEFINITIONS})
 
-add_library(STB_IMAGE libs/stb_image.cpp)
+add_library(STB_IMAGE libs/stb_image.cpp
+        include/stb_image.h)
 set_source_files_properties(libs/stb_image.cpp include/stb_image.h
         PROPERTIES
         COMPILE_FLAGS
@@ -43,7 +44,8 @@ include_directories(${CMAKE_BINARY_DIR}/configuration)
 
 include_directories(include/)
 add_executable(${PROJECT_NAME}
-        ${SOURCES})
+        ${SOURCES}
+        include/stb_image.h)
 
 target_link_libraries(${PROJECT_NAME} ${LIBS})
 

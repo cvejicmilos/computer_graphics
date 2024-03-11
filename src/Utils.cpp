@@ -3,7 +3,7 @@
 namespace fs = std::filesystem;
 
 #include "Utils.h"
-#include "../include/Maths.h"
+#include "Maths.h"
 
 std::string sameDirPath(const std::string& path, const std::string& otherFile) {
     std::string dir = fs::path(path).parent_path().string();

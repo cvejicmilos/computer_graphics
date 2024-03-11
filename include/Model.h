@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Maths.h"
 #include <vector>
 #include <string>
 #include <map>
@@ -7,7 +8,6 @@
 
 #include <glad/glad.h>
 
-#include "Maths.h"
 #include "Shader.h"
 #include "GLutils.h"
 #include "Material.h"
@@ -44,6 +44,6 @@ public:
     Model(const std::string& filepath);
     ~Model();
 
-    void Draw(Scene& scene, Shader& shader);
+    void Draw(Scene& scene, Shader& shader, int fromActiveTexture);
     Matrix4& GetTransform() { return m_Transform; }
 };

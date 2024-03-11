@@ -4,15 +4,23 @@
 
 #include "Maths.h"
 #include "Quad.h"
+#include "Global.h"
 
 class Shader;
 class Model;
 
+struct DepthMapInfo {
+    GLuint shadowMapFBO = 0;
+    GLuint shadowMapTexture = 0;
+    Matrix4 proj, view;
+};
+
 struct DirectionalLight {
-    float intensity = 0.3f;
-    Vec3 diffuse = { 1.0f, 0.8f, 0.2f };
+    float intensity = 1.f;
+    Vec3 diffuse = { 1.0f, 1.0f, 1.0f };
     Vec3 specular = { 1.f, 1.f, 0.9f };
     Vec3 direction = { .7f, -1.f, -1.f };
+    DepthMapInfo depthMapInfo;
 };
 
 struct SpotLight {
@@ -23,6 +31,7 @@ struct SpotLight {
     Vec3 position = { 10, 0, 0 };  
     float cutOff = PI32 * .06125f;
     float outerCutOff = PI32 * .06125f * 1.5f;
+    DepthMapInfo depthMapInfo;
 };
 
 struct PointLight {
@@ -35,7 +44,6 @@ struct PointLight {
     float quadratic = .025f;
 };
 
-
 class Scene {
 private:
     std::vector<PointLight> m_PointLights;
@@ -44,10 +52,21 @@ private:
     std::vector<Model*> m_Models;
     std::vector<GrassQuad> m_Quads;
 
-    Vec3 m_AmbientColor = Vec3{ 1.f, 1.f, 1.f };
+    GLuint m_SkyboxCubemap;
+    GLuint m_SkyboxVAO, m_SkyboxVBO;
+    GLuint m_QuadVAO, m_QuadVBO; // Quad geometry for debug draw texture
 
-    Matrix4 m_ProjMatrix = Matrix4::Perspective(PI32 / 4.f, 1280.0f / 720.0f, 0.1f, 1000.0f);
+    int m_NextActiveTexture = 0;
+
+    Vec3 m_AmbientColor = Vec3{ 0.15f, 0.15f, 0.15f };
+    Vec3 m_AccumulatedDirColor;
+
+    Matrix4 m_ProjMatrix = Matrix4::CreatePerspective(PI32 * 0.4f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1.f, 700.0f);
     Matrix4 m_ViewMatrix = Matrix4::Identity();   
+
+    const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096;
+    const float SHADOW_DISTANCE = 100.0f;
+    const float SHADOW_NEAR = 1.0f, SHADOW_FAR = 300.f;
 
 public:
     Scene();
@@ -72,6 +91,7 @@ public:
     void DeleteModel(Model* model);
 
     void AddQuad(const GrassQuad& quad);
+    void AddGrass(Vec3 pos, float rotation, Vec2 size);
 
     void SetAmbientColor(const Vec3& color) { m_AmbientColor = color; }
     const Vec3& GetAmbientColor() const { return m_AmbientColor; }
@@ -79,5 +99,13 @@ public:
     Matrix4& GetProjectionMatrix() { return m_ProjMatrix; }
     Matrix4& GetViewMatrix() { return m_ViewMatrix; }
 
-    void Draw(Shader& shader, Texture grassTexture, Texture normalMap = Texture());
+    void Draw(Shader& objShader, Shader& skyboxShader, Shader& depthMapShader, Texture grassTexture, Texture grassNormalMap = Texture());
+
+private:
+    void DrawSkybox(Shader& shader);
+    void UploadLightData(Shader& shader);
+    void DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, Texture grassTexture, Texture grassNormalMap);
+    void DebugDrawTexture(GLuint texture);
+    void DrawShadowMap(Shader& shader, DepthMapInfo& info, Texture grassTexture, Texture grassNormalMap);
+    void InitLightDepthMap(DepthMapInfo& info);
 };

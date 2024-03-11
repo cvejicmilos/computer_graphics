@@ -15,6 +15,7 @@ struct Material {
     Vec3 emissiveColor = { 0.f, 0.f, 0.f };
     float specularExponent = 32.f;
     float alpha = 1.f;
+    float reflectiveness = 0.0f;
 
     Texture diffuseMap; 
     Texture specularMap;
@@ -38,4 +39,4 @@ public:
     bool ExistsMaterial(const std::string& name);
 };
 
-void setMaterialInShader(Material& material, Shader& shader);
+void setMaterialInShader(Material& material, Shader& shader, int fromActiveTexture);

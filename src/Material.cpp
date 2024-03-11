@@ -109,9 +109,9 @@ bool MaterialLibrary::ExistsMaterial(const std::string& name) {
     return materials.find(name) != materials.end();
 }
 
-void setMaterialInShader(Material& material, Shader& shader) {
+void setMaterialInShader(Material& material, Shader& shader, int fromActiveTexture) {
 
-    shader.Bind();
+    int nextActiveTexture = fromActiveTexture;
 
     shader.SetFloat("material.alpha", material.alpha);
 
@@ -122,35 +122,36 @@ void setMaterialInShader(Material& material, Shader& shader) {
 
     shader.SetVec3("material.diffuseColor", material.diffuseColor);
     if (material.diffuseMap.id) {
-        shader.SetInt("material.diffuseMap", 0);
-
-        GL_CALL(glActiveTexture(GL_TEXTURE0));
+        int diffuseActiveTexture = nextActiveTexture++;
+        shader.SetInt("material.diffuseMap", diffuseActiveTexture);
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + diffuseActiveTexture));
         GL_CALL(glBindTexture(GL_TEXTURE_2D, material.diffuseMap.id));
     }
 
     shader.SetVec3("material.specularColor", material.specularColor);
     if (material.specularMap.id) {
-        shader.SetInt("material.specularMap", 1);
-
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + 1));
+        int specularActiveTexture = nextActiveTexture++;
+        shader.SetInt("material.specularMap", specularActiveTexture);
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + specularActiveTexture));
         GL_CALL(glBindTexture(GL_TEXTURE_2D, material.specularMap.id));
     }
 
     shader.SetVec3("material.ambientColor", material.ambientColor);
     if (material.ambientMap.id) {
-        shader.SetInt("material.ambientMap", 2);
-
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + 2));
+        int ambientActiveTexture = nextActiveTexture++;
+        shader.SetInt("material.ambientMap", ambientActiveTexture);
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + ambientActiveTexture));
         GL_CALL(glBindTexture(GL_TEXTURE_2D, material.ambientMap.id));
     }   
 
     if (material.normalMap.id) {
-        shader.SetInt("material.normalMap", 3);
-
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + 3));
+        int normalActiveTexture = nextActiveTexture++;
+        shader.SetInt("material.normalMap", normalActiveTexture);
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + normalActiveTexture));
         GL_CALL(glBindTexture(GL_TEXTURE_2D, material.normalMap.id));
     }   
 
     shader.SetFloat("material.specularExponent", material.specularExponent);
     shader.SetFloat("material.specularStrength", 0.5f);
+    shader.SetFloat("material.reflectiveness", material.reflectiveness);
 }

@@ -20,6 +20,9 @@ public:
 
 	bool IsKeyDown(int key);
 
+	int GetWidth();
+	int GetHeight();
+
 	// Poll Window Events
 	void PollEvents();
 	// Swap window buffers

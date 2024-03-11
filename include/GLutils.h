@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 // Helper to crash when an issue arise by dereferencing NULL
 #define CRASH(...) (*((volatile int*)0) = 0)
@@ -25,7 +26,7 @@ inline void glCheckError(const char* function, const char* file, int line) {
         ss << "[OpenGL Error] (" << glErrorToString(error) << "): " 
            << function << " " << file << ":" << line;
         std::cerr << ss.str() << std::endl;
-
+        CRASH();
         
     }
 }
@@ -46,3 +47,5 @@ struct Texture {
 };
 Texture loadTexture(const std::string& path);
 void deleteTexture(const Texture& texture);
+
+GLuint loadCubemap(const std::vector<std::string>& faces);

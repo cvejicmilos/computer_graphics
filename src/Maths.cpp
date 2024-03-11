@@ -1,4 +1,4 @@
-#include "../include/Maths.h"
+#include "Maths.h"
 
 Matrix4::Matrix4() {
     for (int i = 0; i < 16; ++i) data[i] = 0.0f;
@@ -117,7 +117,7 @@ Matrix4 Matrix4::CreateTranslation(const Vec3& v) {
     return mat;
 }
 
-Matrix4 Matrix4::Perspective(float fov, float aspect, float near, float far) {
+Matrix4 Matrix4::CreatePerspective(float fov, float aspect, float near, float far) {
     Matrix4 mat;
     float tanHalfFovy = tan(fov / 2.0f);
     mat.data[0] = 1.0f / (aspect * tanHalfFovy);
@@ -126,6 +126,38 @@ Matrix4 Matrix4::Perspective(float fov, float aspect, float near, float far) {
     mat.data[11] = -1.0f;
     mat.data[14] = -(2.0f * far * near) / (far - near);
     mat.data[15] = 0.0f;
+    return mat;
+}
+Matrix4 Matrix4::CreateLookAt(const Vec3& cameraPos, const Vec3& target, const Vec3& upWorld) {
+    Vec3 forward = (target.Subtract(cameraPos)).Normalized();
+    Vec3 right = Vec3::Cross(upWorld, forward).Normalized();
+    Vec3 up = Vec3::Cross(forward, right);
+
+    Matrix4 rotation = Matrix4::Identity();
+    rotation.data[0] = right.x;
+    rotation.data[1] = right.y;
+    rotation.data[2] = right.z;
+    rotation.data[4] = up.x;
+    rotation.data[5] = up.y;
+    rotation.data[6] = up.z;
+    rotation.data[8] = -forward.x;
+    rotation.data[9] = -forward.y;
+    rotation.data[10] = -forward.z;
+
+    Matrix4 translation = Matrix4::CreateTranslation(cameraPos.Invert());
+
+    return translation * rotation;
+}
+Matrix4 Matrix4::CreateOrtho(float left, float right, float bottom, float top, float near, float far) {
+    Matrix4 mat = Matrix4::Identity();
+
+    mat.data[0] = 2.0f / (right - left);
+    mat.data[5] = 2.0f / (top - bottom);
+    mat.data[10] = -2.0f / (far - near);
+    mat.data[12] = -(right + left) / (right - left);
+    mat.data[13] = -(top + bottom) / (top - bottom);
+    mat.data[14] = -(far + near) / (far - near);
+
     return mat;
 }
 

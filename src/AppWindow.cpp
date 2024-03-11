@@ -12,10 +12,12 @@ AppWindow::AppWindow(const char* title, int width, int height) {
 
 	// Initialize GLFW if it hasn't been initilized yet
 	if (!g_GLFWInitialized) {
-		assert(glfwInit() == GLFW_TRUE);
+		auto result = glfwInit();
+		assert(result == GLFW_TRUE);
 		g_GLFWInitialized = true;
 	}
 
+	glfwWindowHint(GLFW_SAMPLES, 4);
 	m_WindowHandle = glfwCreateWindow(width, height, title, NULL, NULL);
 
 	// Check for error in window creation
@@ -48,6 +50,17 @@ bool AppWindow::IsValid() const {
 
 bool AppWindow::IsKeyDown(int key) {
 	return glfwGetKey(m_WindowHandle, key) == GLFW_PRESS;
+}
+
+int AppWindow::GetWidth() {
+	int x, y;
+	glfwGetWindowSize(m_WindowHandle, &x, &y);
+	return x;
+}
+int AppWindow::GetHeight() {
+	int x, y;
+	glfwGetWindowSize(m_WindowHandle, &x, &y);
+	return y;
 }
 
 void AppWindow::PollEvents() {

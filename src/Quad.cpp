@@ -29,7 +29,7 @@ const Matrix4& GrassQuad::GetTransform() const  {
 std::vector<Vertex> g_AllVertices;
 GLuint g_QuadsVAO = 0, g_QuadsVBO = 0, g_QuadsEBO = 0;
 size_t currentBufferSize = 0;
-const size_t MAX_QUADS = 1000; // Maximum number of quads that can be batched
+const size_t MAX_QUADS = 20000; // Maximum number of quads that can be batched
 const size_t QUAD_VERTEX_COUNT = 4;
 const size_t QUAD_INDEX_COUNT = 6;
 const size_t MAX_VERTICES = MAX_QUADS * QUAD_VERTEX_COUNT;
@@ -126,7 +126,7 @@ void batchDrawGrass(std::vector<GrassQuad>& quads, Shader& shader, Texture textu
     materialPtr->diffuseMap = texture;
     materialPtr->normalMap = normalMap;
 
-    setMaterialInShader(*materialPtr, shader);
+    setMaterialInShader(*materialPtr, shader, 0);
 
     // Draw for each side
     shader.SetMat4("model", Matrix4::Identity());

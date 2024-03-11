@@ -5,9 +5,13 @@
 
 GLuint Shader::s_LastBound = 0;
 
-std::string fallbackVertPath = "assets/shaders/basic.vs";
-std::string fallbackFragPath = "assets/shaders/basic.fs";
-Shader* fallbackShader = NULL;
+std::string g_FallbackVertPath = "assets/shaders/basic.vs";
+std::string g_FallbackFragPath = "assets/shaders/basic.fs";
+Shader* g_FallbackShader = NULL;
+
+std::string g_2DVertPath = "assets/shaders/basic2d.vs";
+std::string g_2DFragPath = "assets/shaders/basic2d.fs";
+Shader* g_2DShader = NULL;
 
 std::string readFileString(const std::string& path) {
     std::ifstream file(path);
@@ -79,6 +83,8 @@ GLuint Shader::GetLocation(const std::string& name) {
 
 bool Shader::Load(ShaderSettings settings) {
 
+    assert(settings.maxNumDirLights > 0 && settings.maxNumPointLights > 0 && settings.maxNumSpotLights > 0);
+
     m_CurrentSettings = settings;
 
     std::cout << "Loading shader from '" << m_VertPath << "' and '" << m_FragPath << "'\n";
@@ -145,11 +151,8 @@ bool Shader::Load(ShaderSettings settings) {
         std::cout << "Shader Loading OK!\n";
     } else {
         std::cout << "Fallback shader used\n";
-        if (!fallbackShader) {
-            fallbackShader = new Shader(fallbackVertPath, fallbackFragPath, settings);
-        }
 
-        m_Program = fallbackShader->m_Program;
+        m_Program = Shader::Basic().m_Program;
     }
 
     return !anyError;
@@ -167,9 +170,24 @@ void tryReplaceAllInString(std::string& str, const std::string& oldSubstr, const
 }
 
 bool Shader::ProcessSource(std::string& src, ShaderSettings settings) {
+
     tryReplaceAllInString(src, "##MAX_NUM_POINTLIGHTS", std::to_string(settings.maxNumPointLights));
     tryReplaceAllInString(src, "##MAX_NUM_DIRLIGHTS", std::to_string(settings.maxNumDirLights));
     tryReplaceAllInString(src, "##MAX_NUM_SPOTLIGHTS", std::to_string(settings.maxNumSpotLights));
 
     return true;
+}
+
+Shader& Shader::Basic() {
+    if (!g_FallbackShader) {
+        g_FallbackShader = new Shader(g_FallbackVertPath, g_FallbackFragPath);
+    }
+    return *g_FallbackShader;
+}
+
+Shader& Shader::Basic2D() {
+    if (!g_2DShader) {
+        g_2DShader = new Shader(g_2DVertPath, g_2DFragPath);
+    }
+    return *g_2DShader;
 }
