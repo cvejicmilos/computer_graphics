@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 out vec4 FragColor;
 
 in vec3 vNormal; 
@@ -30,9 +30,11 @@ struct Material {
 
     float alpha;
     float reflectiveness;
-};
 
+    bool shouldCastShadow;
+};
 struct DepthMapInfo {
+    bool shouldCast;
     sampler2D shadowMap;
     mat4 proj;
     mat4 view;
@@ -58,20 +60,22 @@ struct SpotLight {
 };
 
 struct PointLight {
-    float intensity;
     vec3 diffuse;
+    float intensity;
     vec3 specular;
+    float innerRadius;
     vec3 position;
-
-    float constant;
-    float linear;
-    float quadratic;
+    float outerRadius;
+    int shouldCast;
+    samplerCube shadowMap;
 };
 
 uniform Material material;
 uniform vec3 ambientColor;
 uniform samplerCube skybox;
 uniform vec3 skyboxAmbient;
+uniform float shadowFarPlane;
+uniform int testInt;
 
 // the ##CONSTANT's are replaced by a value when
 // shader is parsed in the program.
@@ -183,14 +187,43 @@ float calcSpec(vec3 lightDir) {
     return spec;
 }
 
+float compute3DShadow(int index) {
+    if (pointLights[index].shouldCast == 0) return 0.0;
+    vec3 fragToLight = vFragPos - pointLights[index].position;
+    fragToLight.x *= -1.0;
+    float currentDepth = length(fragToLight);
+    float shadow  = 0.0;
+    float bias    = 0.2; 
+    float samples = 4.0;
+    float offset  = 0.1;
+    for(float x = -offset; x < offset; x += offset / (samples * 0.5))
+    {
+        for(float y = -offset; y < offset; y += offset / (samples * 0.5))
+        {
+            for(float z = -offset; z < offset; z += offset / (samples * 0.5))
+            {
+                float closestDepth = texture(pointLights[index].shadowMap, fragToLight + vec3(x, y, z)).r; ;
+                closestDepth *= shadowFarPlane;   // undo mapping [0;1]
+                if(currentDepth - bias > closestDepth)
+                    shadow += 1.0;
+            }
+        }
+    }
+    shadow /= (samples * samples * samples);
+    
+    return clamp(shadow, 0.0, 1.0);
+}
+
 float computeDirShadow(DepthMapInfo depthMapInfo) {
+    if (!depthMapInfo.shouldCast) return 0.0;
     vec4 fragPosLightSpace = getPosInLightSpace(depthMapInfo.proj, depthMapInfo.view);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
-    if(projCoords.z > 1.0)
-        return 0.0;
+    if (projCoords.x > 1.0 || projCoords.x < 0.0) return 0.0;
+    if (projCoords.y > 1.0 || projCoords.y < 0.0) return 0.0;
+    if (projCoords.z > 1.0 || projCoords.z < 0.0) return 0.0;
     float currentDepth = projCoords.z;
-    float bias = 0.001;
+    float bias = 0.0015;
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(depthMapInfo.shadowMap, 0);
     const int halfkernelWidth = 2;
@@ -203,12 +236,17 @@ float computeDirShadow(DepthMapInfo depthMapInfo) {
         }
     }
     shadow /= ((halfkernelWidth*2+1)*(halfkernelWidth*2+1));
-
+    
     return clamp(shadow, 0.0, 1.0);
 }
 
 vec3 applySkybox(vec3 contrib) {
-    return mix(contrib, (getSkyboxImpact() * getMaterialSpecular()), material.reflectiveness);
+    if (material.reflectiveness <= 0.0) return contrib;
+    vec3 skyboxContrib = getSkyboxImpact();
+
+    vec3 spec = getMaterialSpecular();
+
+    return mix(contrib, (skyboxContrib * spec), material.reflectiveness);
 }
 
 vec3 getDirLightContribution(DirecitonalLight light) {
@@ -226,22 +264,36 @@ vec3 getDirLightContribution(DirecitonalLight light) {
 
     return contrib;
 }
-vec3 getPointLightContribution(PointLight light) {
-    vec3 lightDir = normalize(light.position - vFragPos);  
+
+float computeAttenuation(float distance, float innerRadius, float outerRadius) {
+    float attenuation = 1.0;
+
+    if (distance > innerRadius) {
+        float theta = clamp((distance - innerRadius) / (outerRadius - innerRadius), 0.0, 1.0);
+        attenuation = 1.0 - theta * theta * (3.0 - 2.0 * theta);
+    }
+
+    return clamp(attenuation, 0.0, 1.0); // Ensure attenuation is within valid range
+}
+
+vec3 getPointLightContribution(int index) {
+    vec3 lightDir = normalize(pointLights[index].position - vFragPos);  
 
     float diff = calcDiff(lightDir);
-    vec3 diffuse = diff  * light.diffuse * getMaterialDiffuse();
+    vec3 diffuse = diff * pointLights[index].diffuse * getMaterialDiffuse();
 
     float spec = calcSpec(lightDir);
-    vec3 specular = material.specularStrength * spec * light.specular * getMaterialSpecular();
+    vec3 specular = material.specularStrength * spec * pointLights[index].specular * getMaterialSpecular();
 
-    float distance    = length(light.position - vFragPos);
-    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+    float distance = length(pointLights[index].position - vFragPos);
+    float attenuation = computeAttenuation(distance, pointLights[index].innerRadius, pointLights[index].outerRadius);
 
     diffuse *= attenuation;
     specular *= attenuation;
 
-    vec3 contrib = applySkybox(diffuse + specular) * light.intensity;
+    float shadow = compute3DShadow(index);
+    
+    vec3 contrib = (1.0 - shadow) * applySkybox(diffuse + specular) * pointLights[index].intensity;
     return contrib;
 }
 
@@ -268,18 +320,19 @@ vec3 getSpotLightContribution(SpotLight light) {
 
         return contrib;
     } else {
-        return vec3(0);
+        return vec3(0.0, 0.0, 0.0);
     }
 }
 
 void main() {
     if (getAlpha() < 0.1) discard;
+    
 
     vec3 lighting = vec3(0.0);
     
 
     for (int i = 0; i < numPointLights; i++) {
-        lighting += getPointLightContribution(pointLights[i]);
+        lighting += getPointLightContribution(i);
     }
     for (int i = 0; i < numDirLights; i++) {
         lighting += getDirLightContribution(dirLights[i]);
@@ -294,4 +347,5 @@ void main() {
 
     float gamma = 1.1;
     FragColor.rgb = pow(FragColor.rgb, vec3(1.0/gamma));
+    
 }

@@ -60,3 +60,44 @@ GLuint loadCubemap(const std::vector<std::string>& faces)
 
     return textureID;
 }
+
+
+std::vector<TextureBindContext::Bind> TextureBindContext::s_Slots;
+GLint TextureBindContext::s_MaxTextureSlots;
+
+void TextureBindContext::Init() {
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &s_MaxTextureSlots);
+    s_Slots.resize(s_MaxTextureSlots);
+    for (int i = 0; i < s_MaxTextureSlots; i++) {
+        s_Slots[i].type = 0;
+    }
+}
+void TextureBindContext::ResetAll() {
+    for (int i = 0; i < s_MaxTextureSlots; i++) {
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+        GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+
+        s_Slots[i].type = 0;
+    }
+}
+void TextureBindContext::Set(int slot, GLenum type, GLuint texture) {
+    if (s_Slots[slot].type != 0) {
+        std::cout << "[WARNING] Texture slot overwrite\n";
+    }
+    s_Slots[slot] = { type, texture };
+}
+void TextureBindContext::Overwrite(int slot, GLenum type, GLuint texture) {
+    s_Slots[slot] = { type, texture };
+}
+void TextureBindContext::ApplyAll() {
+    
+    for (int i = 0; i < s_MaxTextureSlots; i++) {
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+        GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+        if (s_Slots[i].type != 0) {
+            GL_CALL(glBindTexture(s_Slots[i].type, s_Slots[i].texture));
+        }
+    }
+}

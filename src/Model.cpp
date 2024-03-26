@@ -57,7 +57,12 @@ Mesh::~Mesh() {
     GL_CALL(glDeleteBuffers(1, &m_EBO));
 }
 
-void Mesh::DrawCall() {
+void Mesh::DrawCall(Shader& shader) {
+
+    TextureBindContext::ApplyAll();
+
+    checkProgram(shader.GetProgramID());
+
     GL_CALL(glBindVertexArray(m_VAO));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, m_VBO));
@@ -83,7 +88,6 @@ Model::Model(const std::string& objPath) {
     std::vector<unsigned int> currentIndices;
     std::string currentMeshName = "UNNAMED";
     std::string currentMaterialName = "UNNAMED";
-    bool normalSmoothing = true;
 
     // Parsing wavefront .obj model according to:
     // https://en.wikipedia.org/wiki/Wavefront_.obj_file
@@ -99,11 +103,8 @@ Model::Model(const std::string& objPath) {
             iss.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         } else if (prefix == "s") {
             std::string value;
-            iss >> value;
-            normalSmoothing = value != "off";
+            iss >> value; // Ignore
         } else if (prefix == "o") {
-            normalSmoothing = true; // reset for each object
-
             if (currentVertices.size() > 0) {
                 m_Meshes.push_back(new Mesh(currentVertices, currentIndices, currentMeshName, currentMaterialName));
 
@@ -238,6 +239,6 @@ void Model::Draw(Scene& scene, Shader& shader, int fromActiveTexture) {
 
         setMaterialInShader(*materialPtr, shader, fromActiveTexture);
 
-        mesh->DrawCall();
+        mesh->DrawCall(shader);
     }
 }

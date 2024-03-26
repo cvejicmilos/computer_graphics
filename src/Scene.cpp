@@ -3,6 +3,8 @@
 #include "Shader.h"
 #include "Model.h"
 
+#include <assert.h>
+
 Scene::Scene() {
     //
     // Set up skybox
@@ -109,6 +111,8 @@ Scene::Scene() {
 
     GL_CALL(glBindVertexArray(0));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+
+    
 }
 Scene::~Scene() {
 
@@ -156,34 +160,42 @@ void Scene::AddGrass(Vec3 pos, float rotation, Vec2 size) {
     AddQuad(GrassQuad({ pos.x + 0.1f, pos.y + size.y / 2.f - 0.1f, pos.z },        size, { 0, PI32 / 2.f + PI32 + rotation, 0 }));
 }
 
-void Scene::Draw(Shader& objShader, Shader& skyboxShader, Shader& depthMapShader, Texture grassTexture, Texture grassNormalMap) {
-
+void Scene::Draw(const DrawContext& ctx) {
     m_NextActiveTexture = 0;
+    TextureBindContext::ResetAll();
 
     //
     // Draw skybox
     //
-    skyboxShader.Bind();
-    DrawSkybox(skyboxShader);
-    skyboxShader.Unbind();
+    ctx.skyboxShader->Bind();
+    DrawSkybox(ctx);
+    ctx.skyboxShader->Unbind();
 
+    m_NextActiveTexture = 0;
+    TextureBindContext::ResetAll();
 
     //
     // Draw shadowmaps
     //
     for (auto& dirLight : m_DirLights) {
+        if (!dirLight.depthMapInfo.cast) continue;
         dirLight.depthMapInfo.proj = Matrix4::CreateOrtho(-SHADOW_DISTANCE, SHADOW_DISTANCE, -SHADOW_DISTANCE, SHADOW_DISTANCE, SHADOW_NEAR, SHADOW_FAR);
         dirLight.depthMapInfo.view = Matrix4::CreateLookAt(dirLight.direction.Invert().Multiply(SHADOW_DISTANCE * 1.5f), 
                                     dirLight.direction, 
                                     Vec3( 0.0f, 1.0f,  0.0f));
-        
+        dirLight.depthMapInfo.view.Invert();
+
         if (dirLight.depthMapInfo.shadowMapFBO == 0) {
             InitLightDepthMap(dirLight.depthMapInfo);
         }
-        DrawShadowMap(depthMapShader, dirLight.depthMapInfo, grassTexture, grassNormalMap);
+        DrawShadowMap(ctx, dirLight.depthMapInfo);
+        m_NextActiveTexture = 0;
+        TextureBindContext::ResetAll();
     }
+    m_NextActiveTexture = 0;
+    TextureBindContext::ResetAll();
     for (auto& spotLight : m_SpotLights) {
-        spotLight.depthMapInfo.proj = Matrix4::CreatePerspective(spotLight.outerCutOff * 2.0f, 1.0f, SHADOW_NEAR, SHADOW_FAR);
+        spotLight.depthMapInfo.proj = Matrix4::CreatePerspective(spotLight.outerCutOff * 2.0f, (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, SHADOW_NEAR, SHADOW_FAR);
         spotLight.depthMapInfo.view = Matrix4::CreateLookAt(spotLight.position, 
                                     spotLight.position.Add(spotLight.direction), 
                                     Vec3( 0.0f, 1.0f,  0.0f));
@@ -191,30 +203,50 @@ void Scene::Draw(Shader& objShader, Shader& skyboxShader, Shader& depthMapShader
         if (spotLight.depthMapInfo.shadowMapFBO == 0) {
             InitLightDepthMap(spotLight.depthMapInfo);
         }
-        DrawShadowMap(depthMapShader, spotLight.depthMapInfo, grassTexture, grassNormalMap);
+        DrawShadowMap(ctx, spotLight.depthMapInfo);
+        m_NextActiveTexture = 0;
+        TextureBindContext::ResetAll();
     }
+    for (auto& pointLight : m_PointLights) {
+        
+        float aspect = (float)SHADOW_WIDTH3D/(float)SHADOW_HEIGHT3D;
+        pointLight.depthMapInfo.proj = Matrix4::CreatePerspective(PI32 * 0.5f /*90deg*/, aspect, SHADOW_NEAR, SHADOW_FAR);
+
+        pointLight.depthMapInfo.viewTransforms[0] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3( 1.0, 0.0, 0.0)), Vec3(0.0,-1.0, 0.0));
+        pointLight.depthMapInfo.viewTransforms[1] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3(-1.0, 0.0, 0.0)), Vec3(0.0,-1.0, 0.0));
+        pointLight.depthMapInfo.viewTransforms[2] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3( 0.0,-1.0, 0.0)), Vec3(0.0, 0.0,-1.0));
+        pointLight.depthMapInfo.viewTransforms[3] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3( 0.0, 1.0, 0.0)), Vec3(0.0, 0.0, 1.0));
+        pointLight.depthMapInfo.viewTransforms[4] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3( 0.0, 0.0, 1.0)), Vec3(0.0,-1.0, 0.0));
+        pointLight.depthMapInfo.viewTransforms[5] = Matrix4::CreateLookAt(pointLight.position, pointLight.position.Add(Vec3( 0.0, 0.0,-1.0)), Vec3(0.0,-1.0, 0.0));
+
+        if (pointLight.depthMapInfo.shadowMapFBO == 0) {
+            InitLightDepthMap3D(pointLight.depthMapInfo);
+        }
+        DrawShadowMap3D(ctx, pointLight.depthMapInfo, pointLight.position);
+        m_NextActiveTexture = 0;
+        TextureBindContext::ResetAll();
+    }
+    m_NextActiveTexture = 0;
+    TextureBindContext::ResetAll();
 
     //
     // Draw scene from view
     //
-    objShader.Bind();
-    int skyboxActiveTexture = m_NextActiveTexture++;
-    objShader.SetInt("skybox", skyboxActiveTexture);
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + skyboxActiveTexture));
-    GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, m_SkyboxCubemap));
+    ctx.objShader->Bind();
 
-    UploadLightData(objShader);
+    UploadLightData(*ctx.objShader);
     AppWindow* window = GetMainWindow();
     GL_CALL(glViewport(0, 0, window->GetWidth(), window->GetHeight()));
-    DrawGeometry(objShader, this->GetViewMatrix(), this->GetProjectionMatrix(), grassTexture, grassNormalMap);
+    DrawGeometry(*ctx.objShader, this->GetViewMatrix(), this->GetProjectionMatrix(), ctx);
 
-    GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
-    objShader.Unbind();
+    ctx.objShader->Unbind();
 
+    m_NextActiveTexture = 0;
 
     if (g_ShouldDrawDepthMaps) {
         GL_CALL(glViewport(0, 0, window->GetWidth(), window->GetHeight()));
 
+        TextureBindContext::ResetAll();
         if (g_DrawDepthMapIndex < m_DirLights.size()) {
             DebugDrawTexture(m_DirLights[g_DrawDepthMapIndex].depthMapInfo.shadowMapTexture);
         } else if ((g_DrawDepthMapIndex - m_DirLights.size()) < m_SpotLights.size()) {
@@ -224,7 +256,8 @@ void Scene::Draw(Shader& objShader, Shader& skyboxShader, Shader& depthMapShader
     }
 }
 
-void Scene::DrawSkybox(Shader& shader) {
+void Scene::DrawSkybox(const DrawContext& ctx) {
+
     // Need to see inside of faces of skybox cube
     GL_CALL(glViewport(0, 0, GetMainWindow()->GetWidth(), GetMainWindow()->GetHeight()));
     GL_CALL(glCullFace(GL_FRONT));
@@ -232,8 +265,8 @@ void Scene::DrawSkybox(Shader& shader) {
 
     GL_CALL(glBindVertexArray(m_SkyboxVAO));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, m_SkyboxVBO));
-    GL_CALL(glActiveTexture(GL_TEXTURE0));
-    GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, m_SkyboxCubemap));
+
+    TextureBindContext::Set(0, GL_TEXTURE_CUBE_MAP, m_SkyboxCubemap);
 
     m_AccumulatedDirColor = { 0, 0, 0 };
     for (size_t i = 0; i < this->GetDirLights().size(); i++ ) {
@@ -244,10 +277,13 @@ void Scene::DrawSkybox(Shader& shader) {
     Matrix4 viewCopy = m_ViewMatrix;
     viewCopy.SetTranslation(Vec3{ 0, 0, 0 });
     viewCopy.Invert();
-    shader.SetMat4("projection", m_ProjMatrix);
-    shader.SetMat4("view", viewCopy);
-    shader.SetVec3("ambientColor", m_AccumulatedDirColor);
-    shader.SetInt("skybox", 0);
+    ctx.skyboxShader->SetMat4("projection", m_ProjMatrix);
+    ctx.skyboxShader->SetMat4("view", viewCopy);
+    ctx.skyboxShader->SetVec3("ambientColor", m_AccumulatedDirColor);
+    ctx.skyboxShader->SetInt("skybox", 0);
+
+    TextureBindContext::ApplyAll();
+
     GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 36));
     GL_CALL(glDepthMask(GL_TRUE));
     GL_CALL(glCullFace(GL_BACK));
@@ -275,11 +311,10 @@ void Scene::UploadLightData(Shader& shader) {
         shader.HotReload(newSettings);
     }
 
-    // We don't want to go too crazy creating insane amounts of
-    // strings here becaues this happens every frame.
     std::string uniformString;
     std::string subScriptString;
     std::string fullString;
+
 
     uniformString = "pointLights";
     for (size_t i = 0; i < this->GetPointLights().size(); i++ ) {
@@ -292,9 +327,16 @@ void Scene::UploadLightData(Shader& shader) {
         shader.SetVec3(fullString + ".diffuse", light.diffuse);
         shader.SetVec3(fullString + ".specular", light.specular);
         shader.SetVec3(fullString + ".position", light.position);
-        shader.SetFloat(fullString + ".constant", light.constant);
-        shader.SetFloat(fullString + ".linear", light.linear);
-        shader.SetFloat(fullString + ".quadratic", light.quadratic);
+        shader.SetFloat(fullString + ".innerRadius", light.innerRadius);
+        shader.SetFloat(fullString + ".outerRadius", light.outerRadius);
+        
+
+        if (light.depthMapInfo.cast && light.depthMapInfo.shadowCubeMap) {
+            int lightActiveTexture = m_NextActiveTexture++;
+            TextureBindContext::Set(lightActiveTexture, GL_TEXTURE_CUBE_MAP, light.depthMapInfo.shadowCubeMap);
+            shader.SetInt(fullString + ".shadowMap", lightActiveTexture);
+        }
+        shader.SetInt(fullString + ".shouldCast", (int)light.depthMapInfo.cast);
     }
     shader.SetInt("numPointLights", (int)this->GetPointLights().size());
 
@@ -310,14 +352,16 @@ void Scene::UploadLightData(Shader& shader) {
         shader.SetVec3(fullString + ".specular", light.specular);
         shader.SetVec3(fullString + ".direction", light.direction);
 
-        int lightActiveTexture = m_NextActiveTexture++;
-        glActiveTexture(GL_TEXTURE0 + lightActiveTexture);
-        glBindTexture(GL_TEXTURE_2D, light.depthMapInfo.shadowMapTexture);
-        shader.SetInt(fullString + ".depthMapInfo.shadowMap", lightActiveTexture);
-        shader.SetMat4(fullString + ".depthMapInfo.proj", light.depthMapInfo.proj);
-        auto viewInverse = light.depthMapInfo.view;
-        viewInverse.Invert();
-        shader.SetMat4(fullString + ".depthMapInfo.view", viewInverse);
+        if (light.depthMapInfo.cast && light.depthMapInfo.shadowMapFBO) {
+            int lightActiveTexture = m_NextActiveTexture++;
+            TextureBindContext::Set(lightActiveTexture, GL_TEXTURE_2D, light.depthMapInfo.shadowMapTexture);
+            shader.SetInt(fullString + ".depthMapInfo.shadowMap", lightActiveTexture);
+            shader.SetMat4(fullString + ".depthMapInfo.proj", light.depthMapInfo.proj);
+            auto viewInverse = light.depthMapInfo.view;
+            viewInverse.Invert();
+            shader.SetMat4(fullString + ".depthMapInfo.view", viewInverse);
+        }
+        shader.SetInt(fullString + ".depthMapInfo.shouldCast", light.depthMapInfo.cast);
     }
     shader.SetInt("numDirLights", (int)this->GetDirLights().size());
 
@@ -336,21 +380,21 @@ void Scene::UploadLightData(Shader& shader) {
         shader.SetFloat(fullString + ".cutOff", cos(light.cutOff));
         shader.SetFloat(fullString + ".outerCutOff", cos(light.outerCutOff));
 
-        int lightActiveTexture = m_NextActiveTexture++;
-        glActiveTexture(GL_TEXTURE0 + lightActiveTexture);
-        glBindTexture(GL_TEXTURE_2D, light.depthMapInfo.shadowMapTexture);
-        shader.SetInt(fullString + ".depthMapInfo.shadowMap", lightActiveTexture);
-        shader.SetMat4(fullString + ".depthMapInfo.proj", light.depthMapInfo.proj);
-
-        auto viewInverse = light.depthMapInfo.view;
-        viewInverse.Invert();
-        shader.SetMat4(fullString + ".depthMapInfo.view", viewInverse);
+        if (light.depthMapInfo.cast && light.depthMapInfo.shadowMapFBO) {
+            int lightActiveTexture = m_NextActiveTexture++;
+            TextureBindContext::Set(lightActiveTexture, GL_TEXTURE_2D, light.depthMapInfo.shadowMapTexture);
+            shader.SetInt(fullString + ".depthMapInfo.shadowMap", lightActiveTexture);
+            auto viewInverse = light.depthMapInfo.view;
+            shader.SetMat4(fullString + ".depthMapInfo.proj", light.depthMapInfo.proj);
+            viewInverse.Invert();
+            shader.SetMat4(fullString + ".depthMapInfo.view", viewInverse);
+        }
+        shader.SetInt(fullString + ".depthMapInfo.shouldCast", light.depthMapInfo.cast);
     }
     shader.SetInt("numSpotLights", (int)this->GetSpotLights().size());
 }
 
-void Scene::DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, Texture grassTexture, Texture grassNormalMap) {
-
+void Scene::DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, const DrawContext& ctx) {
     Matrix4 viewInverse = view;
     viewInverse.Invert();
     shader.SetMat4("view", viewInverse);
@@ -358,12 +402,17 @@ void Scene::DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, Texture gra
 
     shader.SetVec3("ambientColor", this->GetAmbientColor());
     shader.SetVec3("skyboxAmbient", m_AccumulatedDirColor);
+    shader.SetFloat("shadowFarPlane", SHADOW_FAR);
+
+    int skyboxActiveTexture = m_NextActiveTexture++;
+    TextureBindContext::Set(skyboxActiveTexture, GL_TEXTURE_CUBE_MAP, m_SkyboxCubemap);
+    shader.SetInt("skybox", skyboxActiveTexture);
 
     for (auto model : m_Models) {
         model->Draw(*this, shader, m_NextActiveTexture);
     }
 
-    if (m_Quads.size() > 0) batchDrawGrass(m_Quads, shader, grassTexture, grassNormalMap);
+    if (m_Quads.size() > 0) batchDrawGrass(m_Quads, shader, ctx.grassTexture, ctx.grassNormalMap, m_NextActiveTexture);
 }
 
 void Scene::DebugDrawTexture(GLuint texture) {
@@ -371,8 +420,8 @@ void Scene::DebugDrawTexture(GLuint texture) {
     glDisable(GL_CULL_FACE);
     Shader& shader = Shader::Basic2D();
 
-    GL_CALL(glActiveTexture(GL_TEXTURE0));
-    GL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
+
+    TextureBindContext::Set(0, GL_TEXTURE_2D, texture);
 
     shader.Bind();
     shader.SetInt("theTexture", 0);
@@ -380,6 +429,7 @@ void Scene::DebugDrawTexture(GLuint texture) {
     GL_CALL(glBindVertexArray(m_QuadVAO));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, m_QuadVBO));
 
+    TextureBindContext::ApplyAll();
     GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
 
     shader.Unbind();
@@ -390,17 +440,55 @@ void Scene::DebugDrawTexture(GLuint texture) {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 }
-void Scene::DrawShadowMap(Shader& shader, DepthMapInfo& info, Texture grassTexture, Texture grassNormalMap) {
+void Scene::DrawShadowMap(const DrawContext& ctx, DepthMapInfo& info) {
     GL_CALL(glCullFace(GL_FRONT));
-    shader.Bind();
+    ctx.depthMapShader->Bind();
     GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, info.shadowMapFBO));
     GL_CALL(glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT));
     GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
-    UploadLightData(shader);
-    DrawGeometry(shader, info.view, info.proj, grassTexture, grassNormalMap);
+    DrawGeometry(*ctx.depthMapShader, info.view, info.proj, ctx);
     GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-    shader.Unbind();
+    ctx.depthMapShader->Unbind();
     GL_CALL(glCullFace(GL_BACK));
+}
+void Scene::DrawShadowMap3D(const DrawContext& ctx, DepthMapInfo3D& info, Vec3 lightPos) {
+    GL_CALL(glCullFace(GL_FRONT));
+    ctx.depthMapShader3D->Bind();
+    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, info.shadowMapFBO));
+    GL_CALL(glViewport(0, 0, SHADOW_WIDTH3D, SHADOW_HEIGHT3D));
+    GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
+    ctx.depthMapShader3D->SetMat4Array("lightTransforms", info.viewTransforms, 6);
+    ctx.depthMapShader3D->SetMat4("lightProj", info.proj);
+    ctx.depthMapShader3D->SetVec3("lightPos", lightPos);
+    ctx.depthMapShader3D->SetFloat("farPlane", SHADOW_FAR);
+    DrawGeometry(*ctx.depthMapShader3D, Matrix4::Identity(), Matrix4::Identity(), ctx);
+    GL_CALL(glCullFace(GL_BACK));
+    ctx.depthMapShader3D->Unbind();
+    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+
+
+    /*
+    // Ultra slow sanity checking the shadow map
+    glBindFramebuffer(GL_FRAMEBUFFER, info.shadowMapFBO);
+
+    float* pixels = new float[SHADOW_WIDTH3D * SHADOW_HEIGHT3D];
+
+    for (int face = 0; face < 6; ++face) {
+        glReadPixels(0, 0, SHADOW_WIDTH3D, SHADOW_HEIGHT3D, GL_DEPTH_COMPONENT, GL_FLOAT, pixels);
+
+        for (int x = 0; x < (int)SHADOW_WIDTH3D; x++) {
+            for (int y = 0; y < (int)SHADOW_HEIGHT3D; y++) {
+                float px = pixels[(y * SHADOW_WIDTH3D) + x];
+                if (px < 0.0 || px > 1.0) {
+                    CRASH();
+                }
+            }   
+        }
+    }
+
+    delete[] pixels;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    */
 }
 void Scene::InitLightDepthMap(DepthMapInfo& info) {
 
@@ -410,7 +498,6 @@ void Scene::InitLightDepthMap(DepthMapInfo& info) {
 
     GL_CALL(glGenTextures(1, &info.shadowMapTexture));
     GL_CALL(glBindTexture(GL_TEXTURE_2D, info.shadowMapTexture));
-    // Use GL_DEPTH_COMPONENT instead of GL_RED for depth map
     GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
                 SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
@@ -426,4 +513,30 @@ void Scene::InitLightDepthMap(DepthMapInfo& info) {
     GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0)); 
 
     std::cout << "Done!\n";
+}
+
+void Scene::InitLightDepthMap3D(DepthMapInfo3D& info) {
+    std::cout << "Creating Light Depth Map 3D...\n";
+    GL_CALL(glGenTextures(1, &info.shadowCubeMap));
+    GL_CALL(glBindTexture(GL_TEXTURE_CUBE_MAP, info.shadowCubeMap));
+    for (unsigned int i = 0; i < 6; ++i) {
+        GL_CALL(glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, 
+                     SHADOW_WIDTH3D, SHADOW_HEIGHT3D, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
+    }
+
+    GL_CALL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL_CALL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL_CALL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    GL_CALL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+    GL_CALL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+
+    GL_CALL(glGenFramebuffers(1, &info.shadowMapFBO));
+    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, info.shadowMapFBO));
+    GL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, info.shadowCubeMap, 0));
+    GL_CALL(glDrawBuffer(GL_NONE));
+    GL_CALL(glReadBuffer(GL_NONE));
+
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }

@@ -23,7 +23,7 @@ void MaterialLibrary::LoadMaterialFile(const std::string& path) {
     std::ifstream file(path);
     assert(file.is_open() && "Could not open file");
 
-    std::cout << "Loading materials from '" << path << "\n...";
+    std::cout << "Loading materials from '" << path << "...\n";
 
     Material currentMaterial;
     std::string line;
@@ -124,34 +124,31 @@ void setMaterialInShader(Material& material, Shader& shader, int fromActiveTextu
     if (material.diffuseMap.id) {
         int diffuseActiveTexture = nextActiveTexture++;
         shader.SetInt("material.diffuseMap", diffuseActiveTexture);
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + diffuseActiveTexture));
-        GL_CALL(glBindTexture(GL_TEXTURE_2D, material.diffuseMap.id));
+        TextureBindContext::Overwrite(diffuseActiveTexture, GL_TEXTURE_2D, material.diffuseMap.id);
     }
 
     shader.SetVec3("material.specularColor", material.specularColor);
     if (material.specularMap.id) {
         int specularActiveTexture = nextActiveTexture++;
         shader.SetInt("material.specularMap", specularActiveTexture);
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + specularActiveTexture));
-        GL_CALL(glBindTexture(GL_TEXTURE_2D, material.specularMap.id));
+        TextureBindContext::Overwrite(specularActiveTexture, GL_TEXTURE_2D, material.specularMap.id);
     }
 
     shader.SetVec3("material.ambientColor", material.ambientColor);
     if (material.ambientMap.id) {
         int ambientActiveTexture = nextActiveTexture++;
         shader.SetInt("material.ambientMap", ambientActiveTexture);
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + ambientActiveTexture));
-        GL_CALL(glBindTexture(GL_TEXTURE_2D, material.ambientMap.id));
+        TextureBindContext::Overwrite(ambientActiveTexture, GL_TEXTURE_2D, material.ambientMap.id);
     }   
 
     if (material.normalMap.id) {
         int normalActiveTexture = nextActiveTexture++;
         shader.SetInt("material.normalMap", normalActiveTexture);
-        GL_CALL(glActiveTexture(GL_TEXTURE0 + normalActiveTexture));
-        GL_CALL(glBindTexture(GL_TEXTURE_2D, material.normalMap.id));
+        TextureBindContext::Overwrite(normalActiveTexture, GL_TEXTURE_2D, material.normalMap.id);
     }   
 
     shader.SetFloat("material.specularExponent", material.specularExponent);
     shader.SetFloat("material.specularStrength", 0.5f);
     shader.SetFloat("material.reflectiveness", material.reflectiveness);
+    shader.SetFloat("material.shouldCastShadow", material.shouldCastShadow);
 }

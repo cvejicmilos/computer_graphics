@@ -19,4 +19,4 @@ public:
     Vec2 GetSize() const { return m_Size; }
 };
 
-void batchDrawGrass(std::vector<GrassQuad>& quads, Shader& shader, Texture texture, Texture normalMap);
+void batchDrawGrass(std::vector<GrassQuad>& quads, Shader& shader, Texture texture, Texture normalMap, int nextActiveTexture);

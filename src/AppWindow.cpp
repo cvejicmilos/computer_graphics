@@ -17,6 +17,8 @@ AppWindow::AppWindow(const char* title, int width, int height) {
 		g_GLFWInitialized = true;
 	}
 
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+	//glfwWindowHint(GLFW_OPENGL_CORE_PROFILE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	m_WindowHandle = glfwCreateWindow(width, height, title, NULL, NULL);
 

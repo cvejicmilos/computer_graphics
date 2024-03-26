@@ -21,6 +21,8 @@ struct Material {
 
     float alpha;
     float reflectiveness;
+
+    bool shouldCastShadow;
 };
 uniform Material material;
 
@@ -41,9 +43,8 @@ float getAlpha() {
 
 void main()
 {                
-    if (getAlpha() < 0.1) {
-        //gl_FragDepth = 1.0;
+    if (!material.shouldCastShadow || getAlpha() < 0.1) {
+        
         discard;
     }
-    //gl_FragDepth = 1.0;
 }  

@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include "Maths.h"
 #include "Quad.h"
 #include "Global.h"
 
@@ -13,6 +12,15 @@ struct DepthMapInfo {
     GLuint shadowMapFBO = 0;
     GLuint shadowMapTexture = 0;
     Matrix4 proj, view;
+    bool cast = true;
+};
+
+struct DepthMapInfo3D {
+    GLuint shadowMapFBO = 0;
+    GLuint shadowCubeMap = 0;
+    Matrix4 proj;
+    Matrix4 viewTransforms[6];
+    bool cast = true;
 };
 
 struct DirectionalLight {
@@ -39,9 +47,15 @@ struct PointLight {
     Vec3 diffuse = { 1.f, 1.f, 1.f };
     Vec3 specular = { 1.f, 1.f, 1.f };
     Vec3 position = { 9.f, 3.f, -80.f };
-    float constant = 0.6f;
-    float linear = .05f;
-    float quadratic = .025f;
+    float innerRadius = 10.0f;
+    float outerRadius = 20.0f;
+    DepthMapInfo3D depthMapInfo;
+};
+
+struct DrawContext {
+    Shader *objShader, *depthMapShader, *depthMapShader3D, *skyboxShader;
+    Texture grassTexture;
+    Texture grassNormalMap = Texture();
 };
 
 class Scene {
@@ -59,12 +73,16 @@ private:
     int m_NextActiveTexture = 0;
 
     Vec3 m_AmbientColor = Vec3{ 0.15f, 0.15f, 0.15f };
-    Vec3 m_AccumulatedDirColor;
+    Vec3 m_AccumulatedDirColor = Vec3(0.f, 0.f, 0.f);
 
     Matrix4 m_ProjMatrix = Matrix4::CreatePerspective(PI32 * 0.4f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1.f, 700.0f);
     Matrix4 m_ViewMatrix = Matrix4::Identity();   
 
+    // Cubemap shadow resolution
+    const unsigned int SHADOW_WIDTH3D = 2048, SHADOW_HEIGHT3D = 2048;
+    // 2D shadow map resolution
     const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096;
+
     const float SHADOW_DISTANCE = 100.0f;
     const float SHADOW_NEAR = 1.0f, SHADOW_FAR = 300.f;
 
@@ -99,13 +117,15 @@ public:
     Matrix4& GetProjectionMatrix() { return m_ProjMatrix; }
     Matrix4& GetViewMatrix() { return m_ViewMatrix; }
 
-    void Draw(Shader& objShader, Shader& skyboxShader, Shader& depthMapShader, Texture grassTexture, Texture grassNormalMap = Texture());
+    void Draw(const DrawContext& ctx);
 
 private:
-    void DrawSkybox(Shader& shader);
+    void DrawSkybox(const DrawContext& ctx);
     void UploadLightData(Shader& shader);
-    void DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, Texture grassTexture, Texture grassNormalMap);
+    void DrawGeometry(Shader& shader, Matrix4 view, Matrix4 proj, const DrawContext& ctx);
     void DebugDrawTexture(GLuint texture);
-    void DrawShadowMap(Shader& shader, DepthMapInfo& info, Texture grassTexture, Texture grassNormalMap);
+    void DrawShadowMap(const DrawContext& ctx, DepthMapInfo& info);
+    void DrawShadowMap3D(const DrawContext& ctx, DepthMapInfo3D& info, Vec3 lightPos);
     void InitLightDepthMap(DepthMapInfo& info);
+    void InitLightDepthMap3D(DepthMapInfo3D& info);
 };

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Maths.h"
 #include <vector>
 #include <string>
 #include <map>
@@ -31,7 +30,7 @@ public:
     Mesh() {}
     ~Mesh();
 
-    void DrawCall();
+    void DrawCall(Shader& shader);
 
     Material* GetMaterialPtr() const { return MaterialLibrary::Get().GetMaterial(m_MaterialName); }
     

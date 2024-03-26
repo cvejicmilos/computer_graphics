@@ -21,6 +21,8 @@ struct Material {
     Texture specularMap;
     Texture ambientMap;
     Texture normalMap; 
+
+    bool shouldCastShadow = true;
 };
 
 class MaterialLibrary {
