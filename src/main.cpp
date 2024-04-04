@@ -73,7 +73,25 @@ std::string FileManager::FromRoot(const std::string& relPath) {
 }
 
 int main(int , char** argv)  {
-    
+
+    /**********************************
+ *     CONTROLS:
+ *
+ *   CAMERA MOVEMENT:
+ * WASD: Pan camera on local Z/X axes
+ * SPACE & LSHIFT: Pan camera up and down
+ * ARROW KEYS: Rotate camera on X and Y axes
+ * Q & E: Rotate camera on Z axis
+ *
+ *   TOGGLING LIGHTS:
+ * CTRL + F: Flashlight
+ * CTRL + G: Spinning spotlight
+ * CTRL + H: Moving pointlight
+ *
+ * If performance is bad, you can try to lower the "numGrasses"
+ * variable to render less grass.
+ *
+ * *********************************/
 
     //
     // Initialization
