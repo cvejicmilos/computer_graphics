@@ -46,3 +46,6 @@ The project is written in C++ and OpenGL and it represents a 3D scene in which y
 - [Wavefront .obj File - Wikipedia](en.wikipedia.org/wiki/Wavefront_.obj_file)
 - [YouTube Playlist - OpenGL Tutorials](https://youtube.com/playlist?list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&si=7A3wBYxdreewIAA_)
 
+## PROJECT DEMONSTRATION
+
+https://youtube.com/playlist?list=PLm1D9DRhTG4lHr9JWaHwDCbuQV5WKKimn&si=z45cNc8Vxv6aj7gM
