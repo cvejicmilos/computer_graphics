@@ -23,9 +23,9 @@ The project is written in C++ and OpenGL and it represents a 3D scene in which y
 1. Type in terminal:
 - cd desired_location
 - git clone https://github.com/cvejicmilos/computer_graphics.git
-- cd cd computer_graphics/
+- cd computer_graphics/
 - clion .
-2. Window will open - press `OK` button.
+2. Window will open - press the `OK` button.
 3. Select project_base configuration.
 4. Press `shift + F10`.
 
@@ -34,7 +34,7 @@ The project is written in C++ and OpenGL and it represents a 3D scene in which y
 - `W`, `A`, `S`, `D`: Pan camera on local Z/X axes
 - `SPACE`, `LSHIFT`: Pan camera up and down
 - `ARROW KEYS`: Rotate camera on X and Y axes
-- `Q`, `E`: Rotate camera on Z axis
+- `Q`, `E`: Rotate the camera on Z axis
 - `CTRL + F`: Toggle flashlight
 - `CTRL + G`: Toggle spinning spotlight
 - `CTRL + H`: Toggle moving point light
@@ -48,4 +48,4 @@ The project is written in C++ and OpenGL and it represents a 3D scene in which y
 
 ## PROJECT DEMONSTRATION
 
-https://youtube.com/playlist?list=PLm1D9DRhTG4lHr9JWaHwDCbuQV5WKKimn&si=z45cNc8Vxv6aj7gM
+- [Project demonstration playlist](https://youtube.com/playlist?list=PLm1D9DRhTG4lHr9JWaHwDCbuQV5WKKimn&si=V8_qE9oKUBLsyHWS)
